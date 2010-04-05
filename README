@@ -1,0 +1,43 @@
+Emacs flymake support for Erlang.
+Flymake enables on the fly compilation for development purposes
+and recolors lines with warnings and errors in actual Emacs buffer.
+
+This flymake-erl script walks a directory tree up, starting where the actual
+Erlang file is stored. It searches for Emakefile, looking for clauses which
+matches file to be compiled. 
+This way it respects flags written in Emakefile and allows proper inclusion
+of .hrl files.
+
+Emacs setup:
+
+(require 'flymake)
+(defun flymake-erlang-init ()
+  (list "PATH-TO-<FLYMAKE-ERL>" (list buffer-file-name)))
+(add-to-list 'flymake-allowed-file-name-masks '("\\.erl\\'" flymake-erlang-init))
+(add-hook 'find-file-hook 'flymake-find-file-hook)
+
+place it somewhere below your common erlang-mode/erlware-mode initializations.
+Replace PATH-TO-<FLYMAKE-ERL> with full path to flymake-erl script.
+
+Erlware-mode users:
+
+Erlware mode has it's own flymake support, but that version does not respect
+Emakefile specifying how to compile your Emacs Erlang buffer.
+Open erlware's erlang.el, find line with (load "erlang-flymake") and comment it.
+
+Current limitation:
+
+Emakefile's format specifying what/how to compile is a tuple - it uses 1st element as
+a list of match patterns specifying to what files the compile options apply.
+Only standalone wildcard is implemented currently (*).
+In short, this in Emakefile works:
+'app/amazon/src/*'
+'app/amazon/src/some_file.erl'
+
+but something else wouldn't:
+'app/amazon/src/some_*'
+
+Let me know if this is a problem, or ideally extend fun implies_elem/1 
+(and send back to me ;-)
+
+LICENSE: public domain

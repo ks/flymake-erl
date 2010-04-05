@@ -1,0 +1,67 @@
+#!/usr/bin/env escript
+
+%% LICENSE: public domain
+%% author: karol <dot> skocik <at> gmail
+
+-export([main/1]).
+
+main([Filename]) ->
+    {Dir, Options} =
+        case emakefile_config(dir_up({filename:split(Filename), []})) of
+            false ->
+                {filename:dirname(Filename), []};
+            {_EmakefileDir, _Options} = Res ->
+                Res
+        end,
+    ok = file:set_cwd(Dir),
+    compile:file(Filename, unique(enabled_warnings() ++ Options)).
+
+enabled_warnings() ->
+    [warn_obsolete_guard, warn_unused_import, 
+     warn_shadow_vars, warn_export_vars,
+     strong_validation, report].
+
+unique(Elems) -> gb_sets:to_list(gb_sets:from_list(Elems)).
+
+dir_up({["/"], _}) -> false;
+dir_up({Path, RelFilepath}) ->
+    {Path1, Prefix} = lists:split(length(Path) - 1, Path),
+    {Path1, filename:join(Prefix ++ [RelFilepath])}.
+
+emakefile_config(false) -> false;
+emakefile_config({PathElems, RelFilepath} = PW) ->
+    Emakefile = filename:join(PathElems ++ ["Emakefile"]),
+    case file:consult(Emakefile) of
+        {error, enoent} ->
+            emakefile_config(dir_up(PW));
+        {ok, Forms} ->
+            case find_options(Forms, filename:split(RelFilepath)) of
+                false ->
+                    emakefile_config(dir_up(PW));
+                Options ->
+                    {filename:dirname(Emakefile), Options}
+            end
+    end.
+
+find_options([], _) -> false;
+find_options([{Filespecs, Options} | T], RelFilepathElems) ->
+    F = fun (Spec) -> implies_filepath(Spec, RelFilepathElems) end,
+    case lists:any(F, Filespecs) of
+        false -> find_options(T, RelFilepathElems);
+        true -> Options
+    end.
+
+%% TODO: support other than plain '*' patterns
+implies_elem({"*", _}) -> true;
+implies_elem({X, X}) -> true;
+implies_elem(_) -> false.
+
+implies_filepath(Wildcard, FilepathElems) ->
+    WildcardElems = filename:split(atom_to_list(Wildcard)),
+    case length(WildcardElems) == length(FilepathElems) of
+        false ->
+            false;
+        true ->
+            lists:all(fun (X) -> implies_elem(X) end,
+                      lists:zip(WildcardElems, FilepathElems))
+    end.
